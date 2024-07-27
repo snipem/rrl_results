@@ -1,16 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"encoding/csv"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"github.com/PuerkitoBio/goquery"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
-
-	"github.com/PuerkitoBio/goquery"
+	"text/tabwriter"
 )
 
 func readCSVFile(filename string) ([][]string, error) {
@@ -33,27 +33,39 @@ func readCSVFile(filename string) ([][]string, error) {
 }
 
 func extractMetaContent(url string) (string, error) {
-	resp, err := http.Get(url)
+	// Create a new request
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return "", err
+		fmt.Println("Error creating request:", err)
+		return "", nil
+	}
+
+	// Set the User-Agent header
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36")
+
+	// Create a client and send the request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("Error sending request:", err)
+		return "", nil
 	}
 	defer resp.Body.Close()
+	defer resp.Body.Close()
+	//body, err := io.ReadAll(resp.Body)
 
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
+	//body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	fmt.Println("Response Body:", string(body))
+	//fmt.Println("Response Body:", string(body))
 
 	content := ""
 	doc.Find("meta[property=\"og:title\"]").Each(func(i int, s *goquery.Selection) {
-		content = strings.TrimSpace(s.Text())
+		con, _ := s.Attr("content")
+		content = strings.TrimSpace(con)
 	})
 	return content, nil
 }
@@ -89,19 +101,62 @@ type Result struct {
 	Standings []Position
 	URL       string
 	EventName string
+	Series    string
+}
+
+type Team struct {
+	Name    string
+	Members []string
+	Series  string
 }
 
 func formatWhatsApp(r Result) (string, error) {
-	rs := "```\n"
-	rs += "Nicht offizielles Ergebnis!\n\n"
+	rs := fmt.Sprintf("*%s*\nNicht offizielles Ergebnis!\n", r.EventName)
+	rs += "```\n"
 
+	buffer := bytes.Buffer{}
+	w := tabwriter.NewWriter(&buffer, 10, 1, 1, ' ', tabwriter.Debug)
+
+	fmt.Fprintf(w, "Pos.\tName\tPunkte\tBemerkungen\t\n")
 	for _, standing := range r.Standings {
-		rs = rs + fmt.Sprintf("%2d. %s\n", standing.Position, standing.Name)
+		//rs = rs + fmt.Sprintf("%2d. %s\n", standing.Position, standing.Name)
+		points := 0
+		var remarks []string
+		if standing.FastestLap {
+			remarks = append(remarks, "SR")
+		}
+		if standing.DNF {
+			remarks = append(remarks, "DNF")
+		}
+
+		fmt.Fprintf(w, "%d\t%v\t%v\t%s\t\n", standing.Position, standing.Name, points, strings.Join(remarks, ","))
 	}
+	w.Flush()
+	rs += buffer.String()
 
 	rs += "```"
 
 	return rs, nil
+}
+
+func getTeams(teamsfile string) ([]Team, error) {
+	var teams []Team
+
+	teamCSV, err := readCSVFile(teamsfile)
+	if err != nil {
+		return teams, err
+	}
+	for i := 0; i < len(teamCSV); i++ {
+		teams = append(teams, Team{
+			Name: teamCSV[i][1],
+			Members: []string{
+				teamCSV[i][2],
+				teamCSV[i][3],
+			},
+			Series: teamCSV[i][0],
+		})
+	}
+	return teams, nil
 }
 
 func getResults(results string) (Result, error) {
@@ -138,7 +193,7 @@ func getResults(results string) (Result, error) {
 		r.Standings = append(r.Standings, Position{
 			Position:   position,
 			Name:       name,
-			DNF:        position == dnfPosition,
+			DNF:        position >= dnfPosition,
 			FastestLap: name == fastestLap,
 		})
 		position += 1

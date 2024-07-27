@@ -1,11 +1,22 @@
-Rookie Racing Legends,Tallz-88,KuhlerMann_42
-Midlife Motors,Yenkoo,heipoBayer
-Steuerhinterzieher,MC_Jozinho_23,kartoffel_zdf
-Umbreit ESPORT 1,UE_Yanek,UE_TobN
-De Zwarte Schapen GP,ldsnooze,LukasFalk46
-Red&Blue Racing,dante_1006,therealod
-Rennsportgruppe O.S.T.,boWritos,smue75
-Diving Monkeyz,Karad360,jannofant68
-LimitedAmbition,PatrickRacingTV,teddy9787
-KroTech Motorsport,Fredi998,Mistery Horn
-Umbreit ESPORTS 2,Triechex,F1_Lauda
+A-Serie,Rookie Racing Legends,Tallz-88,KuhlerMann_42
+A-Serie,Midlife Motors,Yenkoo,heipoBayer
+A-Serie,Steuerhinterzieher,MC_Jozinho_23,kartoffel_zdf
+A-Serie,Umbreit ESPORT 1,UE_Yanek,UE_TobN
+A-Serie,De Zwarte Schapen GP,ldsnooze,LukasFalk46
+A-Serie,Red&Blue Racing,dante_1006,therealod
+A-Serie,Rennsportgruppe O.S.T.,boWritos,smue75
+A-Serie,Diving Monkeyz,Karad360,jannofant68
+A-Serie,LimitedAmbition,PatrickRacingTV,teddy9787
+A-Serie,KroTech Motorsport,Fredi998,Mistery Horn
+A-Serie,Umbreit ESPORTS 2,Triechex,F1_Lauda
+B-Serie,KölscheJungs,Maenni708,Maischbert
+B-Serie,Lost in Pace Racing,Magin,mikeresistere
+B-Serie,OutRun Racing Senior,x_X_xaNuBiSx_X_x,goal_keeper20
+B-Serie,OutRun Racing Junior,d00p44,haffner90
+B-Serie,Green Mamba Racing,x_--Skippi--_x,R3laxMambaFrk
+B-Serie,Alte Säcke Racing,bluechip2405,Roadtrip73
+B-Serie,Phantomracer,TEKKNO180968,KimZocktOffline
+B-Serie,Lux Performance,PascalBayer,Delpes001
+B-Serie,Micro Machines Motorsport,snimat,MarciStar266
+B-Serie,Die Hellenischen Heizer,BaloTelly87,Tegooo83
+B-Serie,,Grape1214,Tengo1Punto40
