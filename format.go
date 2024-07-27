@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -66,6 +67,7 @@ func extractMetaContent(url string) (string, error) {
 	doc.Find("meta[property=\"og:title\"]").Each(func(i int, s *goquery.Selection) {
 		con, _ := s.Attr("content")
 		content = strings.TrimSpace(con)
+		content = strings.Replace(content, " - Rookie Racing League - ACC / F1 24 / GT7 / WRC 23", "", -1)
 	})
 	return content, nil
 }
@@ -73,20 +75,28 @@ func extractMetaContent(url string) (string, error) {
 func main() {
 
 	var results string
-	var teams string
-	var einteilung string
+	//var teams string
+	//var einteilung string
 
 	flag.StringVar(&results, "results", "", "Results parameter")
-	flag.StringVar(&teams, "teams", "", "Teams parameter")
-	flag.StringVar(&einteilung, "einteilung", "", "Einteilung parameter")
+	//flag.StringVar(&teams, "teams", "", "Teams parameter")
+	//flag.StringVar(&einteilung, "einteilung", "", "Einteilung parameter")
 
 	flag.Parse()
 
 	fmt.Println("Results:", results)
-	fmt.Println("Teams:", teams)
-	fmt.Println("Einteilung:", einteilung)
+	//fmt.Println("Teams:", teams)
+	//fmt.Println("Einteilung:", einteilung)
 
-	_, _ = getResults(results)
+	r, err := getResults(results)
+	if err != nil {
+		log.Fatal(err)
+	}
+	whatsAppMessage, err := formatWhatsApp(r)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(whatsAppMessage)
 
 }
 
@@ -111,13 +121,28 @@ type Team struct {
 }
 
 func formatWhatsApp(r Result) (string, error) {
-	rs := fmt.Sprintf("*%s*\nNicht offizielles Ergebnis!\n", r.EventName)
+	rs := fmt.Sprintf("*%s*\nUnoffizielles Ergebnis!\n", r.EventName)
 	rs += "```\n"
 
 	buffer := bytes.Buffer{}
-	w := tabwriter.NewWriter(&buffer, 10, 1, 1, ' ', tabwriter.Debug)
+	w := tabwriter.NewWriter(&buffer, 0, 1, 1, ' ', tabwriter.DiscardEmptyColumns)
 
-	fmt.Fprintf(w, "Pos.\tName\tPunkte\tBemerkungen\t\n")
+	showPoints := false
+	showSeries := true
+
+	// position
+	fmt.Fprintf(w, "P\t")
+	fmt.Fprintf(w, "Name\t")
+	fmt.Fprintf(w, "\t") // remarks
+	if showPoints {
+		fmt.Fprintf(w, "Pts\t")
+	}
+	if showSeries {
+		fmt.Fprintf(w, "Serie\t")
+	}
+
+	fmt.Fprintf(w, "\n")
+
 	for _, standing := range r.Standings {
 		//rs = rs + fmt.Sprintf("%2d. %s\n", standing.Position, standing.Name)
 		points := 0
@@ -129,7 +154,23 @@ func formatWhatsApp(r Result) (string, error) {
 			remarks = append(remarks, "DNF")
 		}
 
-		fmt.Fprintf(w, "%d\t%v\t%v\t%s\t\n", standing.Position, standing.Name, points, strings.Join(remarks, ","))
+		fmt.Fprintf(w, "%d\t", standing.Position)
+		fmt.Fprintf(w, "%v\t", standing.Name)
+		fmt.Fprintf(w, "%s\t", strings.Join(remarks, ","))
+		if showPoints {
+			fmt.Fprintf(w, "%d\t", points)
+		}
+		if showSeries {
+			fmt.Fprintf(w, "%v\t", getSeries(standing.Name))
+		}
+
+		fmt.Fprintf(w, "\n")
+
+		//if showPoints {
+		//	fmt.Fprintf(w, "%d\t%v\t%v\t%s\t\n", standing.Position, standing.Name, getSeries(standing.Name), points, strings.Join(remarks, ","))
+		//} else {
+		//	fmt.Fprintf(w, "%d\t%v\t%s\t\n", standing.Position, standing.Name, getSeries(standing.Name), strings.Join(remarks, ","))
+		//}
 	}
 	w.Flush()
 	rs += buffer.String()
@@ -137,6 +178,21 @@ func formatWhatsApp(r Result) (string, error) {
 	rs += "```"
 
 	return rs, nil
+}
+
+func getSeries(name string) any {
+
+	// TODO This is a hack
+	content, err := readCSVFile("einteilung.csv")
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, line := range content {
+		if line[1] == name {
+			return strings.Replace(line[0], "-Serie", "", 1)
+		}
+	}
+	return ""
 }
 
 func getTeams(teamsfile string) ([]Team, error) {
@@ -159,8 +215,8 @@ func getTeams(teamsfile string) ([]Team, error) {
 	return teams, nil
 }
 
-func getResults(results string) (Result, error) {
-	resultsCSV, err := readCSVFile(results)
+func getResults(resultsfile string) (Result, error) {
+	resultsCSV, err := readCSVFile(resultsfile)
 	r := Result{}
 
 	if err != nil {
@@ -189,7 +245,7 @@ func getResults(results string) (Result, error) {
 
 	position := 1
 	for i := 2; i < len(resultsCSV)-1; i++ {
-		name := resultsCSV[i][0]
+		name := strings.TrimSpace(resultsCSV[i][0])
 		r.Standings = append(r.Standings, Position{
 			Position:   position,
 			Name:       name,
