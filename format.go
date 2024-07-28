@@ -33,12 +33,60 @@ func readCSVFile(filename string) ([][]string, error) {
 	return records, nil
 }
 
-func extractMetaContent(url string) (string, error) {
+var pointScale = []int{
+	40,
+	35,
+	32,
+	30,
+	28,
+	26,
+	24,
+	23,
+	22,
+	21,
+	20,
+	19,
+	18,
+	17,
+	16,
+	15,
+	14,
+	13,
+	12,
+	11,
+	10,
+	9,
+	8,
+	7,
+	6,
+	5,
+	4,
+	3,
+	2,
+	1,
+}
+
+func extractMetaContent(url string) (title string, series string, err error) {
+
+	series = ""
+
+	if strings.Contains(url, "b-serie") {
+		series = "B"
+	}
+
+	if strings.Contains(url, "a-serie") {
+		series = "A"
+	}
+
+	if strings.Contains(url, "multiclass") {
+		series = "Multi"
+	}
+
 	// Create a new request
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		fmt.Println("Error creating request:", err)
-		return "", nil
+		return "", "", nil
 	}
 
 	// Set the User-Agent header
@@ -49,7 +97,7 @@ func extractMetaContent(url string) (string, error) {
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Println("Error sending request:", err)
-		return "", nil
+		return "", "", nil
 	}
 	defer resp.Body.Close()
 	defer resp.Body.Close()
@@ -58,7 +106,7 @@ func extractMetaContent(url string) (string, error) {
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
 	//body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	//fmt.Println("Response Body:", string(body))
@@ -69,7 +117,7 @@ func extractMetaContent(url string) (string, error) {
 		content = strings.TrimSpace(con)
 		content = strings.Replace(content, " - Rookie Racing League - ACC / F1 24 / GT7 / WRC 23", "", -1)
 	})
-	return content, nil
+	return content, series, nil
 }
 
 func main() {
@@ -92,7 +140,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	whatsAppMessage, err := formatWhatsApp(r)
+	whatsAppMessage, err := formatWhatsApp(r, false, true)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -105,6 +153,8 @@ type Position struct {
 	Name       string
 	DNF        bool
 	FastestLap bool
+	Points     int
+	HomeSeries string
 }
 
 type Result struct {
@@ -120,15 +170,12 @@ type Team struct {
 	Series  string
 }
 
-func formatWhatsApp(r Result) (string, error) {
+func formatWhatsApp(r Result, showPoints bool, showSeries bool) (string, error) {
 	rs := fmt.Sprintf("*%s*\nUnoffizielles Ergebnis!\n", r.EventName)
 	rs += "```\n"
 
 	buffer := bytes.Buffer{}
 	w := tabwriter.NewWriter(&buffer, 0, 1, 1, ' ', tabwriter.DiscardEmptyColumns)
-
-	showPoints := false
-	showSeries := true
 
 	// position
 	fmt.Fprintf(w, "P\t")
@@ -145,7 +192,6 @@ func formatWhatsApp(r Result) (string, error) {
 
 	for _, standing := range r.Standings {
 		//rs = rs + fmt.Sprintf("%2d. %s\n", standing.Position, standing.Name)
-		points := 0
 		var remarks []string
 		if standing.FastestLap {
 			remarks = append(remarks, "SR")
@@ -158,7 +204,7 @@ func formatWhatsApp(r Result) (string, error) {
 		fmt.Fprintf(w, "%v\t", standing.Name)
 		fmt.Fprintf(w, "%s\t", strings.Join(remarks, ","))
 		if showPoints {
-			fmt.Fprintf(w, "%d\t", points)
+			fmt.Fprintf(w, "%s\t", formatPoints(standing.Points))
 		}
 		if showSeries {
 			fmt.Fprintf(w, "%v\t", getSeries(standing.Name))
@@ -180,7 +226,14 @@ func formatWhatsApp(r Result) (string, error) {
 	return rs, nil
 }
 
-func getSeries(name string) any {
+func formatPoints(points int) any {
+	if points > 0 {
+		return fmt.Sprintf("+%d", points)
+	}
+	return ""
+}
+
+func getSeries(name string) string {
 
 	// TODO This is a hack
 	content, err := readCSVFile("einteilung.csv")
@@ -215,6 +268,29 @@ func getTeams(teamsfile string) ([]Team, error) {
 	return teams, nil
 }
 
+func isEligibleToEarnPoints(series string, homeSeries string) bool {
+
+	if series == "Multi" {
+		return true
+	}
+
+	// Anyone can earn points in a no series
+	if series == "" {
+		return true
+	}
+
+	if series == homeSeries {
+		return true
+	}
+
+	// A drives may only earn points in their home series
+	if homeSeries != "A" {
+		return true
+	}
+
+	return false
+}
+
 func getResults(resultsfile string) (Result, error) {
 	resultsCSV, err := readCSVFile(resultsfile)
 	r := Result{}
@@ -228,11 +304,12 @@ func getResults(resultsfile string) (Result, error) {
 	r.URL = url
 
 	// meta content is in second line
-	metaContent, err := extractMetaContent(url)
+	eventTitle, series, err := extractMetaContent(url)
 	if err != nil {
 		return r, err
 	}
-	r.EventName = metaContent
+	r.EventName = eventTitle
+	r.Series = series
 
 	// fastestLap is in second line
 	fastestLap := resultsCSV[1][0]
@@ -244,13 +321,32 @@ func getResults(resultsfile string) (Result, error) {
 	}
 
 	position := 1
+	pointsPosition := 0
+
 	for i := 2; i < len(resultsCSV)-1; i++ {
 		name := strings.TrimSpace(resultsCSV[i][0])
+		homeSeries := getSeries(name)
+
+		didNotFinish := position >= dnfPosition
+		earnedPoints := 0
+		hasFastestLap := name == fastestLap
+
+		if isEligibleToEarnPoints(r.Series, homeSeries) && !didNotFinish {
+			earnedPoints = pointScale[pointsPosition]
+			pointsPosition += 1
+
+			if hasFastestLap {
+				earnedPoints += 2
+			}
+		}
+
 		r.Standings = append(r.Standings, Position{
 			Position:   position,
 			Name:       name,
-			DNF:        position >= dnfPosition,
-			FastestLap: name == fastestLap,
+			DNF:        didNotFinish,
+			Points:     earnedPoints,
+			HomeSeries: homeSeries,
+			FastestLap: hasFastestLap,
 		})
 		position += 1
 	}
