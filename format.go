@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -136,11 +137,15 @@ func main() {
 	//fmt.Println("Teams:", teams)
 	//fmt.Println("Einteilung:", einteilung)
 
-	r, err := getResults(results)
+	individualResults, err := getResults(results)
 	if err != nil {
 		log.Fatal(err)
 	}
-	whatsAppMessage, err := formatWhatsApp(r, false, true)
+	teamResults, err := getTeamResults(individualResults)
+	if err != nil {
+		log.Fatal(err)
+	}
+	whatsAppMessage, err := formatWhatsApp(individualResults, teamResults, false, true)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -165,15 +170,28 @@ type Result struct {
 }
 
 type Team struct {
-	Name    string
-	Members []string
-	Series  string
+	Name       string
+	Members    []string
+	HomeSeries string
 }
 
-func formatWhatsApp(r Result, showPoints bool, showSeries bool) (string, error) {
-	rs := fmt.Sprintf("*%s*\nUnoffizielles Ergebnis!\n", r.EventName)
+func formatWhatsApp(individualResults Result, teamResults Result, showPoints bool, showSeries bool) (string, error) {
+	rs := fmt.Sprintf("*%s*\nInoffizielles Ergebnis!\n", individualResults.EventName)
 	rs += "```\n"
 
+	rs += getAsciiTable(individualResults, showPoints, showSeries)
+	rs += "```"
+	rs += "\n"
+	rs += "Teams nach Punkten:\n"
+	rs += "```\n"
+	rs += getAsciiTable(teamResults, showPoints, showSeries)
+
+	rs += "```"
+
+	return rs, nil
+}
+
+func getAsciiTable(r Result, showPoints bool, showSeries bool) string {
 	buffer := bytes.Buffer{}
 	w := tabwriter.NewWriter(&buffer, 0, 1, 1, ' ', tabwriter.DiscardEmptyColumns)
 
@@ -185,7 +203,7 @@ func formatWhatsApp(r Result, showPoints bool, showSeries bool) (string, error) 
 		fmt.Fprintf(w, "Pts\t")
 	}
 	if showSeries {
-		fmt.Fprintf(w, "Serie\t")
+		fmt.Fprintf(w, "S\t")
 	}
 
 	fmt.Fprintf(w, "\n")
@@ -207,7 +225,7 @@ func formatWhatsApp(r Result, showPoints bool, showSeries bool) (string, error) 
 			fmt.Fprintf(w, "%s\t", formatPoints(standing.Points))
 		}
 		if showSeries {
-			fmt.Fprintf(w, "%v\t", getSeries(standing.Name))
+			fmt.Fprintf(w, "%v\t", standing.HomeSeries)
 		}
 
 		fmt.Fprintf(w, "\n")
@@ -219,11 +237,7 @@ func formatWhatsApp(r Result, showPoints bool, showSeries bool) (string, error) 
 		//}
 	}
 	w.Flush()
-	rs += buffer.String()
-
-	rs += "```"
-
-	return rs, nil
+	return buffer.String()
 }
 
 func formatPoints(points int) any {
@@ -262,7 +276,7 @@ func getTeams(teamsfile string) ([]Team, error) {
 				teamCSV[i][2],
 				teamCSV[i][3],
 			},
-			Series: teamCSV[i][0],
+			HomeSeries: teamCSV[i][0],
 		})
 	}
 	return teams, nil
@@ -352,4 +366,63 @@ func getResults(resultsfile string) (Result, error) {
 	}
 
 	return r, nil
+}
+
+func getTeamResults(r Result) (Result, error) {
+
+	teamResult := Result{
+		EventName: r.EventName,
+		Series:    r.Series,
+		Standings: []Position{},
+	}
+
+	teams, err := getTeams("teams.csv")
+
+	if err != nil {
+		return teamResult, err
+	}
+
+	for _, team := range teams {
+
+		// only get those teams with matching series
+		if r.Series != "" && team.HomeSeries != r.Series {
+			continue
+		}
+
+		teamPoints := getPoints(r.Standings, team.Members[0]) + getPoints(r.Standings, team.Members[1])
+
+		// do not add teams that have no points
+		if teamPoints == 0 {
+			continue
+		}
+
+		teamResult.Standings = append(teamResult.Standings, Position{
+			Name:       team.Name,
+			DNF:        false,
+			Points:     teamPoints,
+			HomeSeries: team.HomeSeries,
+			FastestLap: false,
+		})
+
+	}
+
+	// sot by points
+	sort.Slice(teamResult.Standings, func(i, j int) bool {
+		return teamResult.Standings[i].Points > teamResult.Standings[j].Points
+	})
+
+	for i, _ := range teamResult.Standings {
+		teamResult.Standings[i].Position = i + 1
+	}
+	return teamResult, nil
+
+}
+
+func getPoints(standings []Position, name string) int {
+	for _, standing := range standings {
+		if standing.Name == name {
+			return standing.Points
+		}
+	}
+	return 0
 }

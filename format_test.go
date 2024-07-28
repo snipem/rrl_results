@@ -10,8 +10,10 @@ func Test_getResults(t *testing.T) {
 	r, err := getResults("results_zandvoort.csv")
 	assert.NoError(t, err)
 	fmt.Printf("%v\n", r)
+	teamResults, err := getTeamResults(r)
+	assert.NoError(t, err)
 
-	fmt.Println(formatWhatsApp(r, true, true))
+	fmt.Println(formatWhatsApp(r, teamResults, true, true))
 }
 
 func Test_getTeams(t *testing.T) {
