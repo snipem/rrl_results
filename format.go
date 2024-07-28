@@ -179,24 +179,26 @@ func formatWhatsApp(individualResults Result, teamResults Result, showPoints boo
 	rs := fmt.Sprintf("*%s*\nInoffizielles Ergebnis!\n", individualResults.EventName)
 	rs += "```\n"
 
-	rs += getAsciiTable(individualResults, showPoints, showSeries)
+	rs += getAsciiTable(individualResults, true, showPoints, showSeries)
 	rs += "```"
 	rs += "\n"
 	rs += "Teams nach Punkten:\n"
 	rs += "```\n"
-	rs += getAsciiTable(teamResults, showPoints, showSeries)
+	rs += getAsciiTable(teamResults, false, showPoints, false)
 
 	rs += "```"
 
 	return rs, nil
 }
 
-func getAsciiTable(r Result, showPoints bool, showSeries bool) string {
+func getAsciiTable(r Result, showPosition bool, showPoints bool, showSeries bool) string {
 	buffer := bytes.Buffer{}
 	w := tabwriter.NewWriter(&buffer, 0, 1, 1, ' ', tabwriter.DiscardEmptyColumns)
 
 	// position
-	fmt.Fprintf(w, "P\t")
+	if showPosition {
+		fmt.Fprintf(w, "P\t")
+	}
 	fmt.Fprintf(w, "Name\t")
 	fmt.Fprintf(w, "\t") // remarks
 	if showPoints {
@@ -218,7 +220,9 @@ func getAsciiTable(r Result, showPoints bool, showSeries bool) string {
 			remarks = append(remarks, "DNF")
 		}
 
-		fmt.Fprintf(w, "%d\t", standing.Position)
+		if showPosition {
+			fmt.Fprintf(w, "%d\t", standing.Position)
+		}
 		fmt.Fprintf(w, "%v\t", standing.Name)
 		fmt.Fprintf(w, "%s\t", strings.Join(remarks, ","))
 		if showPoints {
@@ -317,6 +321,12 @@ func getResults(resultsfile string) (Result, error) {
 	url := resultsCSV[0][0]
 	r.URL = url
 
+	// dnf position is second line
+	dnfPosition, err := strconv.Atoi(resultsCSV[1][0])
+	if err != nil {
+		return r, err
+	}
+
 	// meta content is in second line
 	eventTitle, series, err := extractMetaContent(url)
 	if err != nil {
@@ -325,19 +335,13 @@ func getResults(resultsfile string) (Result, error) {
 	r.EventName = eventTitle
 	r.Series = series
 
-	// fastestLap is in second line
-	fastestLap := resultsCSV[1][0]
-
-	// dnf position is in last line
-	dnfPosition, err := strconv.Atoi(resultsCSV[len(resultsCSV)-1][0])
-	if err != nil {
-		return r, err
-	}
+	// fastestLap is in third line
+	fastestLap := resultsCSV[2][0]
 
 	position := 1
 	pointsPosition := 0
 
-	for i := 2; i < len(resultsCSV)-1; i++ {
+	for i := 3; i < len(resultsCSV); i++ {
 		name := strings.TrimSpace(resultsCSV[i][0])
 		homeSeries := getSeries(name)
 

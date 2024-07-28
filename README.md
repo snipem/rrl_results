@@ -8,12 +8,12 @@ Ein Formatierer für Simracing-Ligen.
 
 ```csv
 1. Zeile: URL-Link zu Rennveranstaltung
-2. Zeile: Fahrer-ID Schnellste Rennrunde
-3. Zeile: Fahrer auf Pos 1
-4. Zeile: Fahrer auf Pos 2
+2. Zeile: Position des ersten Fahrers mit DNF, 0 wenn Rennen ohne DNF
+3. Zeile: Fahrer-ID Schnellste Rennrunde
+4. Zeile: Fahrer auf Pos 1
+5. Zeile: Fahrer auf Pos 2
 ...
-Vorletzte Zeile: Fahrer auf letzter Position
-Letzte Zeile: Position des ersten Fahrers mit DNF, 0 wenn Rennen ohne DNF
+Letzte Zeile: Fahrer auf letzter Position
 ```
 ### Serieneinteilung: `einteilung.csv`
 
