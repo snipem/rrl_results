@@ -184,7 +184,7 @@ func formatWhatsApp(individualResults Result, teamResults Result, showPoints boo
 	rs += "\n"
 	rs += "Teams nach Punkten:\n"
 	rs += "```\n"
-	rs += getAsciiTable(teamResults, false, showPoints, false)
+	rs += getAsciiTable(teamResults, true, showPoints, false)
 
 	rs += "```"
 
