@@ -1,7 +1,8 @@
 #!/bin/bash
 
-echo URL:
-read url
+cd $HOME/work/rrl_results
+
+url=$(curl "https://rookie-racing.eu/kalender/calendar-feed/" | grep -Eo "(http|https)://[a-zA-Z0-9./?=_%:-]*" | sort -u | grep "/event/" | fzf --prompt "URL: > ")
 
 echo Platz des ersten Fahreres mit DNF. 0 wenn es kein DNF gab:
 read dnf
