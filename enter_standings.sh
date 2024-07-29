@@ -6,7 +6,7 @@ read url
 echo Platz des ersten Fahreres mit DNF. 0 wenn es kein DNF gab:
 read dnf
 
-result_file_name="results_$(basename $url).csv"
+result_file_name="results/results_$(basename $url).csv"
 
 curl -s "$url" > input.html
 
