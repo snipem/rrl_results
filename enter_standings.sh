@@ -13,13 +13,23 @@ curl -s "$url" > input.html
 echo "$url" > $result_file_name
 echo "$dnf" >> $result_file_name
 
+fzf_prompt="Schnellste Runde > "
+i=1
+
 while true 
 do
     cat input.html | 
         pup ".jsParticipant strong text{}" | 
-	sed -e 's/^[[:space:]]*//g' |
-        fzf --bind=enter:replace-query+print-query >> $result_file_name || break
+        sed -e 's/^[[:space:]]*//g' |
+        sed -e 's/[[:space:]]*$//g' |
+        cat - <(cat einteilung.csv | cut --delimiter=, --fields 2) |
+        sort -u |
+        fzf --prompt="$fzf_prompt" -i --bind=enter:replace-query+print-query >> $result_file_name || break
+        fzf_prompt="CTRL-C -> quit: P$i > "
+        i=$(( $i + 1 ))
 done
 
-go run format.go --results "$result_file_name"
+echo ""
+
+go run format.go --results "$result_file_name" | tee whatsapp.txt
 
