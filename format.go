@@ -345,7 +345,7 @@ func getResults(resultsfile string) (Result, error) {
 		name := strings.TrimSpace(resultsCSV[i][0])
 		homeSeries := getSeries(name)
 
-		didNotFinish := position >= dnfPosition
+		didNotFinish := dnfPosition != 0 && position >= dnfPosition
 		earnedPoints := 0
 		hasFastestLap := name == fastestLap
 
