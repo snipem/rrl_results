@@ -24,7 +24,7 @@ do
         pup ".jsParticipant strong text{}" | 
         sed -e 's/^[[:space:]]*//g' |
         sed -e 's/[[:space:]]*$//g' |
-        cat - <(cat einteilung.csv | cut --delimiter=, --fields 2) |
+        cat - <(cat einteilung.csv | cut -f2 -d "," ) |
         sort -u |
         fzf $fzf_color --prompt="$fzf_prompt" -i --bind=enter:replace-query+print-query >> $result_file_name || break
         fzf_prompt="CTRL-C -> quit: P$i > "
@@ -35,4 +35,6 @@ done
 echo ""
 
 go run format.go --results "$result_file_name" | tee whatsapp.txt
+cat whatsapp.txt | pbcopy
+open /Applications/WhatsApp.app
 
