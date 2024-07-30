@@ -133,7 +133,7 @@ func main() {
 
 	flag.Parse()
 
-	fmt.Println("Results:", results)
+	// fmt.Println("Results:", results)
 	//fmt.Println("Teams:", teams)
 	//fmt.Println("Einteilung:", einteilung)
 
