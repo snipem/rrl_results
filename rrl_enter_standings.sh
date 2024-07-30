@@ -15,6 +15,7 @@ echo "$url" > $result_file_name
 echo "$dnf" >> $result_file_name
 
 fzf_prompt="Schnellste Runde > "
+export FZF_DEFAULT_OPTS='--color=bg:#FF00FF'
 i=1
 
 while true 
@@ -25,8 +26,9 @@ do
         sed -e 's/[[:space:]]*$//g' |
         cat - <(cat einteilung.csv | cut --delimiter=, --fields 2) |
         sort -u |
-        fzf --prompt="$fzf_prompt" -i --bind=enter:replace-query+print-query >> $result_file_name || break
+        fzf $fzf_color --prompt="$fzf_prompt" -i --bind=enter:replace-query+print-query >> $result_file_name || break
         fzf_prompt="CTRL-C -> quit: P$i > "
+        export FZF_DEFAULT_OPTS=''
         i=$(( $i + 1 ))
 done
 
