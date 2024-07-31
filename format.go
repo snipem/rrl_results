@@ -34,6 +34,8 @@ func readCSVFile(filename string) ([][]string, error) {
 	return records, nil
 }
 
+var circus *Circus
+
 var pointScale = []int{
 	40,
 	35,
@@ -153,13 +155,21 @@ func main() {
 
 }
 
+type Driver struct {
+	id         string
+	HomeSeries string
+	// Class is PRO, PROAM or AM
+	Class string
+	Team  *Team
+}
+
 type Position struct {
 	Position   int
-	Name       string
+	Driver     *Driver
 	DNF        bool
 	FastestLap bool
 	Points     int
-	HomeSeries string
+	Team       *Team
 }
 
 type Result struct {
@@ -171,27 +181,32 @@ type Result struct {
 
 type Team struct {
 	Name       string
-	Members    []string
+	Drivers    []*Driver
 	HomeSeries string
+}
+
+type Circus struct {
+	Drivers []*Driver
+	Teams   []*Team
 }
 
 func formatWhatsApp(individualResults Result, teamResults Result, showPoints bool, showSeries bool) (string, error) {
 	rs := fmt.Sprintf("*%s*\nInoffizielles Ergebnis!\n", individualResults.EventName)
 	rs += "```\n"
 
-	rs += getAsciiTable(individualResults, true, showPoints, showSeries)
+	rs += getAsciiTable(individualResults, true, showPoints, showSeries, false)
 	rs += "```"
 	rs += "\n"
 	rs += "Teams nach Punkten:\n"
 	rs += "```\n"
-	rs += getAsciiTable(teamResults, true, showPoints, false)
+	rs += getAsciiTable(teamResults, true, showPoints, false, true)
 
 	rs += "```"
 
 	return rs, nil
 }
 
-func getAsciiTable(r Result, showPosition bool, showPoints bool, showSeries bool) string {
+func getAsciiTable(r Result, showPosition bool, showPoints bool, showSeries bool, isTeamTable bool) string {
 	buffer := bytes.Buffer{}
 	w := tabwriter.NewWriter(&buffer, 0, 1, 1, ' ', tabwriter.DiscardEmptyColumns)
 
@@ -199,7 +214,7 @@ func getAsciiTable(r Result, showPosition bool, showPoints bool, showSeries bool
 	if showPosition {
 		fmt.Fprintf(w, "P\t")
 	}
-	fmt.Fprintf(w, "Name\t")
+	fmt.Fprintf(w, "Driver\t")
 	fmt.Fprintf(w, "\t") // remarks
 	if showPoints {
 		fmt.Fprintf(w, "Pts\t")
@@ -211,7 +226,7 @@ func getAsciiTable(r Result, showPosition bool, showPoints bool, showSeries bool
 	fmt.Fprintf(w, "\n")
 
 	for _, standing := range r.Standings {
-		//rs = rs + fmt.Sprintf("%2d. %s\n", standing.Position, standing.Name)
+		//rs = rs + fmt.Sprintf("%2d. %s\n", standing.Position, standing.Driver)
 		var remarks []string
 		if standing.FastestLap {
 			remarks = append(remarks, "SR")
@@ -223,21 +238,25 @@ func getAsciiTable(r Result, showPosition bool, showPoints bool, showSeries bool
 		if showPosition {
 			fmt.Fprintf(w, "%d\t", standing.Position)
 		}
-		fmt.Fprintf(w, "%v\t", standing.Name)
+		if !isTeamTable {
+			fmt.Fprintf(w, "%v\t", standing.Driver.id)
+		} else {
+			fmt.Fprintf(w, "%v\t", standing.Team.Name)
+		}
 		fmt.Fprintf(w, "%s\t", strings.Join(remarks, ","))
 		if showPoints {
 			fmt.Fprintf(w, "%s\t", formatPoints(standing.Points))
 		}
 		if showSeries {
-			fmt.Fprintf(w, "%v\t", standing.HomeSeries)
+			fmt.Fprintf(w, "%v\t", standing.Driver.HomeSeries)
 		}
 
 		fmt.Fprintf(w, "\n")
 
 		//if showPoints {
-		//	fmt.Fprintf(w, "%d\t%v\t%v\t%s\t\n", standing.Position, standing.Name, getSeries(standing.Name), points, strings.Join(remarks, ","))
+		//	fmt.Fprintf(w, "%d\t%v\t%v\t%s\t\n", standing.Position, standing.Driver, getSeries(standing.Driver), points, strings.Join(remarks, ","))
 		//} else {
-		//	fmt.Fprintf(w, "%d\t%v\t%s\t\n", standing.Position, standing.Name, getSeries(standing.Name), strings.Join(remarks, ","))
+		//	fmt.Fprintf(w, "%d\t%v\t%s\t\n", standing.Position, standing.Driver, getSeries(standing.Driver), strings.Join(remarks, ","))
 		//}
 	}
 	w.Flush()
@@ -266,24 +285,41 @@ func getSeries(name string) string {
 	return ""
 }
 
-func getTeams(teamsfile string) ([]Team, error) {
-	var teams []Team
+func getTeams(drivers []*Driver) ([]*Team, error) {
+	var teams []*Team
 
-	teamCSV, err := readCSVFile(teamsfile)
+	teamCSV, err := readCSVFile("teams.csv")
 	if err != nil {
 		return teams, err
 	}
 	for i := 0; i < len(teamCSV); i++ {
-		teams = append(teams, Team{
-			Name: teamCSV[i][1],
-			Members: []string{
-				teamCSV[i][2],
-				teamCSV[i][3],
-			},
+		t := &Team{
+			Name:       teamCSV[i][1],
 			HomeSeries: teamCSV[i][0],
-		})
+		}
+		for _, memberId := range teamCSV[i][2:] {
+			d, found := getDriverById(drivers, memberId)
+			if !found {
+				return teams, fmt.Errorf("Driver with id %s for team %s not found", memberId, t.Name)
+			}
+			t.Drivers = append(t.Drivers, d)
+			d.Team = t
+		}
+
+		teams = append(teams, t)
 	}
 	return teams, nil
+}
+
+func getDriverById(drivers []*Driver, id string) (d *Driver, found bool) {
+
+	for _, driver := range drivers {
+
+		if driver.id == id {
+			return driver, true
+		}
+	}
+	return nil, false
 }
 
 func isEligibleToEarnPoints(series string, homeSeries string) bool {
@@ -342,12 +378,23 @@ func getResults(resultsfile string) (Result, error) {
 	pointsPosition := 0
 
 	for i := 3; i < len(resultsCSV); i++ {
-		name := strings.TrimSpace(resultsCSV[i][0])
-		homeSeries := getSeries(name)
+
+		driverId := strings.TrimSpace(resultsCSV[i][0])
+		driver, found := getDriverById(getCircus().Drivers, driverId)
+		if !found {
+			log.Printf("Driver with id %s not found, creating new one with no teams and no series associated\n", driverId)
+			driver = &Driver{
+				id:         driverId,
+				HomeSeries: "",
+				Class:      "",
+				Team:       nil,
+			}
+		}
+		homeSeries := getSeries(driverId)
 
 		didNotFinish := dnfPosition != 0 && position >= dnfPosition
 		earnedPoints := 0
-		hasFastestLap := name == fastestLap
+		hasFastestLap := driverId == fastestLap
 
 		if isEligibleToEarnPoints(r.Series, homeSeries) && !didNotFinish {
 			earnedPoints = pointScale[pointsPosition]
@@ -360,16 +407,66 @@ func getResults(resultsfile string) (Result, error) {
 
 		r.Standings = append(r.Standings, Position{
 			Position:   position,
-			Name:       name,
+			Driver:     driver,
 			DNF:        didNotFinish,
 			Points:     earnedPoints,
-			HomeSeries: homeSeries,
 			FastestLap: hasFastestLap,
 		})
 		position += 1
 	}
 
 	return r, nil
+}
+
+func getCircus() *Circus {
+
+	if circus == nil {
+
+		drivers, err := getDrivers()
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		teams, err := getTeams(drivers)
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		circus = &Circus{
+			Drivers: drivers,
+			Teams:   teams,
+		}
+
+	}
+	return circus
+}
+
+func getDrivers() ([]*Driver, error) {
+
+	var drivers []*Driver
+
+	teamCSV, err := readCSVFile("einteilung.csv")
+	if err != nil {
+		return drivers, err
+	}
+	for i := 0; i < len(teamCSV); i++ {
+
+		class := ""
+		if len(teamCSV[i]) >= 3 {
+			class = teamCSV[i][2]
+		}
+
+		d := &Driver{
+			HomeSeries: teamCSV[i][0],
+			id:         teamCSV[i][1],
+			Class:      class,
+		}
+		drivers = append(drivers, d)
+	}
+	return drivers, nil
+
 }
 
 func getTeamResults(r Result) (Result, error) {
@@ -380,11 +477,7 @@ func getTeamResults(r Result) (Result, error) {
 		Standings: []Position{},
 	}
 
-	teams, err := getTeams("teams.csv")
-
-	if err != nil {
-		return teamResult, err
-	}
+	teams := circus.Teams
 
 	for _, team := range teams {
 
@@ -393,7 +486,8 @@ func getTeamResults(r Result) (Result, error) {
 			continue
 		}
 
-		teamPoints := getPoints(r.Standings, team.Members[0]) + getPoints(r.Standings, team.Members[1])
+		// TODO support more than one driver
+		teamPoints := getPoints(r.Standings, team.Drivers[0].id) + getPoints(r.Standings, team.Drivers[1].id)
 
 		// do not add teams that have no points
 		if teamPoints == 0 {
@@ -401,10 +495,10 @@ func getTeamResults(r Result) (Result, error) {
 		}
 
 		teamResult.Standings = append(teamResult.Standings, Position{
-			Name:       team.Name,
+			//Driver:     team.Name,
+			Team:       team,
 			DNF:        false,
 			Points:     teamPoints,
-			HomeSeries: team.HomeSeries,
 			FastestLap: false,
 		})
 
@@ -424,7 +518,7 @@ func getTeamResults(r Result) (Result, error) {
 
 func getPoints(standings []Position, name string) int {
 	for _, standing := range standings {
-		if standing.Name == name {
+		if standing.Driver.id == name {
 			return standing.Points
 		}
 	}
