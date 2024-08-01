@@ -36,6 +36,10 @@ func readCSVFile(filename string) ([][]string, error) {
 
 var circus *Circus
 
+const AM = "AM"
+const PROAM = "PROAM"
+const PRO = "PRO"
+
 var pointScale = []int{
 	40,
 	35,
@@ -156,7 +160,7 @@ func main() {
 }
 
 type Driver struct {
-	id         string
+	Id         string
 	HomeSeries string
 	// Class is PRO, PROAM or AM
 	Class string
@@ -177,12 +181,17 @@ type Result struct {
 	URL       string
 	EventName string
 	Series    string
+	Class     string
 }
 
 type Team struct {
 	Name       string
 	Drivers    []*Driver
 	HomeSeries string
+}
+
+func (t *Team) String() string {
+	return fmt.Sprintf("%s [%s, %s]", t.Name, t.Drivers[0].Id, t.Drivers[1].Id)
 }
 
 type Circus struct {
@@ -239,7 +248,7 @@ func getAsciiTable(r Result, showPosition bool, showPoints bool, showSeries bool
 			fmt.Fprintf(w, "%d\t", standing.Position)
 		}
 		if !isTeamTable {
-			fmt.Fprintf(w, "%v\t", standing.Driver.id)
+			fmt.Fprintf(w, "%v\t", standing.Driver.Id)
 		} else {
 			fmt.Fprintf(w, "%v\t", standing.Team.Name)
 		}
@@ -300,7 +309,7 @@ func getTeams(drivers []*Driver) ([]*Team, error) {
 		for _, memberId := range teamCSV[i][2:] {
 			d, found := getDriverById(drivers, memberId)
 			if !found {
-				return teams, fmt.Errorf("Driver with id %s for team %s not found", memberId, t.Name)
+				return teams, fmt.Errorf("Driver with Id %s for team %s not found", memberId, t.Name)
 			}
 			t.Drivers = append(t.Drivers, d)
 			d.Team = t
@@ -315,7 +324,7 @@ func getDriverById(drivers []*Driver, id string) (d *Driver, found bool) {
 
 	for _, driver := range drivers {
 
-		if driver.id == id {
+		if driver.Id == id {
 			return driver, true
 		}
 	}
@@ -382,9 +391,9 @@ func getResults(resultsfile string) (Result, error) {
 		driverId := strings.TrimSpace(resultsCSV[i][0])
 		driver, found := getDriverById(getCircus().Drivers, driverId)
 		if !found {
-			log.Printf("Driver with id %s not found, creating new one with no teams and no series associated\n", driverId)
+			log.Printf("Driver with Id %s not found, creating new one with no teams and no series associated\n", driverId)
 			driver = &Driver{
-				id:         driverId,
+				Id:         driverId,
 				HomeSeries: "",
 				Class:      "",
 				Team:       nil,
@@ -460,7 +469,7 @@ func getDrivers() ([]*Driver, error) {
 
 		d := &Driver{
 			HomeSeries: teamCSV[i][0],
-			id:         teamCSV[i][1],
+			Id:         teamCSV[i][1],
 			Class:      class,
 		}
 		drivers = append(drivers, d)
@@ -487,7 +496,7 @@ func getTeamResults(r Result) (Result, error) {
 		}
 
 		// TODO support more than one driver
-		teamPoints := getPoints(r.Standings, team.Drivers[0].id) + getPoints(r.Standings, team.Drivers[1].id)
+		teamPoints := getPoints(r.Standings, team.Drivers[0].Id) + getPoints(r.Standings, team.Drivers[1].Id)
 
 		// do not add teams that have no points
 		if teamPoints == 0 {
@@ -518,9 +527,28 @@ func getTeamResults(r Result) (Result, error) {
 
 func getPoints(standings []Position, name string) int {
 	for _, standing := range standings {
-		if standing.Driver.id == name {
+		if standing.Driver.Id == name {
 			return standing.Points
 		}
 	}
 	return 0
+}
+
+// getClassResult returns the result for the given class and the series of the event
+func getClassResult(r Result, class string) (classresult Result) {
+
+	classresult = Result{
+		EventName: r.EventName,
+		Class:     class,
+		Series:    r.Series,
+		Standings: []Position{},
+	}
+
+	for i := 0; i < len(r.Standings); i++ {
+		if r.Standings[i].Driver.Class == class && r.Standings[i].Driver.HomeSeries == r.Series {
+			classresult.Standings = append(classresult.Standings, r.Standings[i])
+		}
+	}
+	return classresult
+
 }
