@@ -151,7 +151,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	whatsAppMessage, err := formatWhatsApp(individualResults, teamResults, false, true)
+	showPoints := true
+	whatsAppMessage, err := formatWhatsApp(individualResults, teamResults, showPoints, true)
+
+	if err != nil {
+		return
+	}
+
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -200,17 +206,29 @@ type Circus struct {
 }
 
 func formatWhatsApp(individualResults Result, teamResults Result, showPoints bool, showSeries bool) (string, error) {
+
+	showPosition := true
+
 	rs := fmt.Sprintf("*%s*\nInoffizielles Ergebnis!\n", individualResults.EventName)
 	rs += "```\n"
 
-	rs += getAsciiTable(individualResults, true, showPoints, showSeries, false)
+	rs += getAsciiTable(individualResults, showPosition, showPoints, showSeries, false)
 	rs += "```"
 	rs += "\n"
 	rs += "Teams nach Punkten:\n"
 	rs += "```\n"
-	rs += getAsciiTable(teamResults, true, showPoints, false, true)
+	rs += getAsciiTable(teamResults, showPosition, showPoints, false, true)
 
-	rs += "```"
+	for i, s := range []string{"PRO", "PROAM", "AM"} {
+		rs += fmt.Sprintf("Ergebnis %s-Klasse\n", s)
+		rs += "```\n"
+		rs += getAsciiTable(getClassResult(individualResults, s), showPosition, showPoints, false, true)
+		if i < 2 {
+			rs += "\n"
+		}
+		rs += "```\n"
+
+	}
 
 	return rs, nil
 }
@@ -299,21 +317,27 @@ func getTeams(drivers []*Driver) ([]*Team, error) {
 
 	teamCSV, err := readCSVFile("teams.csv")
 	if err != nil {
-		return teams, err
+		return teams, fmt.Errorf("failed to read teams.csv: %w", err)
 	}
 	for i := 0; i < len(teamCSV); i++ {
 		t := &Team{
 			Name:       teamCSV[i][1],
 			HomeSeries: teamCSV[i][0],
 		}
-		for _, memberId := range teamCSV[i][2:] {
+		for _, memberId := range teamCSV[i][2:3] {
+			if memberId == "" {
+				continue
+			}
+
 			d, found := getDriverById(drivers, memberId)
 			if !found {
-				return teams, fmt.Errorf("Driver with Id %s for team %s not found", memberId, t.Name)
+				return teams, fmt.Errorf("driver with Id %s for team %s not found", memberId, t.Name)
 			}
 			t.Drivers = append(t.Drivers, d)
 			d.Team = t
 		}
+
+		t.HomeSeries = teamCSV[i][0]
 
 		teams = append(teams, t)
 	}
@@ -440,7 +464,7 @@ func getCircus() *Circus {
 		teams, err := getTeams(drivers)
 
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal(fmt.Sprintf("getCircus -> getTeams: %s", err))
 		}
 
 		circus = &Circus{
@@ -496,7 +520,12 @@ func getTeamResults(r Result) (Result, error) {
 		}
 
 		// TODO support more than one driver
-		teamPoints := getPoints(r.Standings, team.Drivers[0].Id) + getPoints(r.Standings, team.Drivers[1].Id)
+		teamPoints := 0
+		if len(team.Drivers) == 2 {
+			teamPoints = getPoints(r.Standings, team.Drivers[0].Id) + getPoints(r.Standings, team.Drivers[1].Id)
+		} else if len(team.Drivers) == 1 {
+			teamPoints = getPoints(r.Standings, team.Drivers[0].Id)
+		}
 
 		// do not add teams that have no points
 		if teamPoints == 0 {
