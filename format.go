@@ -188,7 +188,13 @@ func formatForum(results Result) (out string, err error) {
 	out += webIndividual
 
 	out += "<h3>Teamergebnis</h3>"
-	// TODO
+	teamresult, err := getTeamResults_new(results)
+	webTeams, err := formatWebTeams(teamresult)
+	if err != nil {
+		return "", err
+	}
+
+	out += webTeams
 
 	out += "<h3>Klassenergebnisse</h3>"
 
@@ -202,6 +208,74 @@ func formatForum(results Result) (out string, err error) {
 		out += formatedIndividual
 	}
 	return
+
+}
+
+func getTeamResults_new(result Result) (teamResult Teamresult, err error) {
+	teamResult = Teamresult{
+		EventName: result.EventName,
+		Series:    result.Series,
+		Standings: []TeamPosition{},
+	}
+
+	teams := circus.Teams
+
+	for _, team := range teams {
+
+		// only get those teams with matching series
+		if result.Series != "" && team.HomeSeries != result.Series {
+			continue
+		}
+
+		// TODO support more than one driver
+		teamPoints := 0
+		if len(team.Drivers) == 2 {
+			teamPoints = getPoints(result.Standings, team.Drivers[0].Id) + getPoints(result.Standings, team.Drivers[1].Id)
+		} else if len(team.Drivers) == 1 {
+			teamPoints = getPoints(result.Standings, team.Drivers[0].Id)
+		}
+
+		// do not add teams that have no points
+		if teamPoints == 0 {
+			continue
+		}
+
+		teamResult.Standings = append(teamResult.Standings, TeamPosition{
+			Team:   team,
+			Points: teamPoints,
+		})
+
+	}
+
+	// sot by points
+	sort.Slice(teamResult.Standings, func(i, j int) bool {
+		return teamResult.Standings[i].Points > teamResult.Standings[j].Points
+	})
+
+	for i, _ := range teamResult.Standings {
+		teamResult.Standings[i].Position = i + 1
+	}
+	return teamResult, nil
+
+}
+
+func formatWebTeams(teamresult Teamresult) (out string, err error) {
+	t := getTableWriter()
+
+	t.AppendHeader(table.Row{"Pos.", "Teamname", "Serie", "Klasse", "Punkte"})
+
+	for _, standing := range teamresult.Standings {
+		pointsRendered := ""
+		if standing.Points > 0 {
+			pointsRendered = fmt.Sprintf("+%d", standing.Points)
+		}
+
+		t.AppendRow(table.Row{
+			standing.Position, standing.Team.Name, standing.Team.HomeSeries, standing.Team.Class, pointsRendered,
+		})
+
+	}
+	return t.RenderHTML(), nil
 
 }
 
@@ -224,6 +298,20 @@ type Position struct {
 
 type Result struct {
 	Standings []Position
+	URL       string
+	EventName string
+	Series    string
+	Class     string
+}
+
+type TeamPosition struct {
+	Position int
+	Team     *Team
+	Points   int
+}
+
+type Teamresult struct {
+	Standings []TeamPosition
 	URL       string
 	EventName string
 	Series    string
@@ -425,7 +513,7 @@ func getTeams(drivers []*Driver) ([]*Team, error) {
 		t := &Team{
 			HomeSeries: teamCSV[i][0],
 			Name:       teamCSV[i][1],
-			Class:      teamCSV[i][2],
+			Class:      teamCSV[i][4],
 		}
 		for _, memberId := range teamCSV[i][2:4] {
 			if memberId == "" {
