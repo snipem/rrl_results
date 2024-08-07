@@ -4,6 +4,7 @@ go 1.22
 
 require (
 	github.com/PuerkitoBio/goquery v1.9.2
+	github.com/jedib0t/go-pretty/v6 v6.5.9
 	github.com/ktr0731/go-fuzzyfinder v0.8.0
 	github.com/stretchr/testify v1.9.0
 )

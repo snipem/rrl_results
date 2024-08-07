@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"os"
 	"testing"
 )
 
@@ -130,4 +131,24 @@ func Test_getHomeSeries(t *testing.T) {
 	assert.Equal(t, classresult.Standings[0].Driver.Id, "Series B Driver 2")
 	assert.Equal(t, classresult.Standings[1].Driver.Id, "Series B Driver 3")
 
+}
+
+func Test_formatWeb(t *testing.T) {
+	r, err := getResults("results_zandvoort.csv")
+	assert.NoError(t, err)
+	fmt.Printf("%v\n", r)
+	//, err := getTeamResults(r)
+	//assert.NoError(t, err)
+
+	html, err := formatWebIndividual(r)
+
+	assert.NoError(t, err)
+
+	fmt.Println(html)
+	// write to file
+	f, err := os.Create("test_formatWeb.html")
+	assert.NoError(t, err)
+	defer f.Close()
+	_, err = f.WriteString(html)
+	assert.NoError(t, err)
 }

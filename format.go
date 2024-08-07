@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
+	"github.com/jedib0t/go-pretty/v6/table"
 	"log"
 	"net/http"
 	"os"
@@ -206,6 +207,44 @@ type Circus struct {
 	Teams   []*Team
 }
 
+func formatWebIndividual(result Result) (string, error) {
+
+	t := getTableWriter()
+
+	t.AppendHeader(table.Row{"Pos.", "Name", "Team", "Info", "Serie", "Klasse", "Punkte"})
+
+	for _, standing := range result.Standings {
+		remarks := getRemarks(result, standing)
+		pointsRendered := ""
+		if standing.Points > 0 {
+			pointsRendered = fmt.Sprintf("+%d", standing.Points)
+		}
+
+		teamName := ""
+		if standing.Driver.Team != nil {
+			teamName = standing.Driver.Team.Name
+		}
+
+		t.AppendRow(table.Row{
+			standing.Position, standing.Driver.Id, teamName, strings.Join(remarks, ", "), standing.Driver.HomeSeries, standing.Driver.Class, pointsRendered,
+		})
+
+	}
+	return t.RenderHTML(), nil
+}
+
+func getTableWriter() table.Writer {
+	t := table.NewWriter()
+
+	t.Style().HTML = table.HTMLOptions{
+		CSSClass:    "rrl_results",
+		EmptyColumn: "&nbsp;",
+		EscapeText:  true,
+		Newline:     "<br/>",
+	}
+	return t
+}
+
 func formatWhatsApp(individualResults Result, teamResults Result, showPoints bool, showSeries bool, showClass bool) (string, error) {
 
 	showPosition := true
@@ -259,18 +298,7 @@ func getAsciiTable(r Result, showPosition bool, showPoints bool, showSeries bool
 
 	for _, standing := range r.Standings {
 		//rs = rs + fmt.Sprintf("%2d. %s\n", standing.Position, standing.Driver)
-		var remarks []string
-		if standing.FastestLap {
-			remarks = append(remarks, "SR")
-		}
-		if standing.DNF {
-			remarks = append(remarks, "DNF")
-		}
-
-		// This is for the individual table
-		if standing.Driver != nil && standing.Driver.HomeSeries != r.Series {
-			remarks = append(remarks, "EF")
-		}
+		remarks := getRemarks(r, standing)
 
 		if showPosition {
 			fmt.Fprintf(w, "%d\t", standing.Position)
@@ -307,6 +335,22 @@ func getAsciiTable(r Result, showPosition bool, showPoints bool, showSeries bool
 	}
 	w.Flush()
 	return buffer.String()
+}
+
+func getRemarks(r Result, standing Position) []string {
+	var remarks []string
+	if standing.FastestLap {
+		remarks = append(remarks, "SR")
+	}
+	if standing.DNF {
+		remarks = append(remarks, "DNF")
+	}
+
+	// This is for the individual table
+	if standing.Driver != nil && standing.Driver.HomeSeries != r.Series {
+		remarks = append(remarks, "EF")
+	}
+	return remarks
 }
 
 func formatPoints(points int) any {
