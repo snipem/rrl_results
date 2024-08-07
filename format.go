@@ -164,6 +164,45 @@ func main() {
 	}
 	fmt.Println(whatsAppMessage)
 
+	forumString, err := formatForum(individualResults)
+	if err != nil {
+		log.Fatal(err)
+	}
+	f, err := os.Create("test_formatWeb.html")
+	defer f.Close()
+	_, err = f.WriteString(forumString)
+
+}
+
+func formatForum(results Result) (out string, err error) {
+
+	out += "<h2>Inofizielles Ergebnis " + results.EventName + "</h2>"
+	//out += "<p>Abgetippt von snimat und erstellt mittels <a href=\"https://github.com/snipem/rrl_results\">https://github.com/snipem/rrl_results</a></p>"
+
+	out += "<h3>Endergebnis</h3>"
+
+	webIndividual, err := formatWebIndividual(results)
+	if err != nil {
+		return "", err
+	}
+	out += webIndividual
+
+	out += "<h3>Teamergebnis</h3>"
+	// TODO
+
+	out += "<h3>Klassenergebnisse</h3>"
+
+	for _, s := range []string{"PRO", "PROAM", "AM"} {
+		out += fmt.Sprintf("<h4>%s</h4>", s)
+		classResult := getClassResult(results, s)
+		formatedIndividual, err := formatWebIndividual(classResult)
+		if err != nil {
+			return "", err
+		}
+		out += formatedIndividual
+	}
+	return
+
 }
 
 type Driver struct {

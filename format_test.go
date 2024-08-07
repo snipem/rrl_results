@@ -133,14 +133,14 @@ func Test_getHomeSeries(t *testing.T) {
 
 }
 
-func Test_formatWeb(t *testing.T) {
-	r, err := getResults("results_zandvoort.csv")
+func Test_formatForum(t *testing.T) {
+	r, err := getResults("results/results_4193-acc-gt3-a-serie-i-rennen-1-red-bull-ring-mittwoch-07-08-2024-19-00-22-00.csv")
 	assert.NoError(t, err)
 	fmt.Printf("%v\n", r)
 	//, err := getTeamResults(r)
 	//assert.NoError(t, err)
 
-	html, err := formatWebIndividual(r)
+	html, err := formatForum(r)
 
 	assert.NoError(t, err)
 
