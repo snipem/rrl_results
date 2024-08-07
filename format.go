@@ -207,8 +207,25 @@ func formatForum(results Result) (out string, err error) {
 		}
 		out += formatedIndividual
 	}
-	return
+	htmlPage := generateHTMLPage(out)
+	return htmlPage, nil
 
+}
+
+// generateHTMLPage generates an HTML page with the given body content.
+func generateHTMLPage(bodyContent string) string {
+	htmlTemplate := `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    %s
+</body>
+</html>`
+	return fmt.Sprintf(htmlTemplate, bodyContent)
 }
 
 func getTeamResults_new(result Result) (teamResult Teamresult, err error) {
