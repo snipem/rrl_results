@@ -324,7 +324,7 @@ func getTeams(drivers []*Driver) ([]*Team, error) {
 			Name:       teamCSV[i][1],
 			HomeSeries: teamCSV[i][0],
 		}
-		for _, memberId := range teamCSV[i][2:3] {
+		for _, memberId := range teamCSV[i][2:4] {
 			if memberId == "" {
 				continue
 			}
@@ -482,18 +482,21 @@ func getDrivers() ([]*Driver, error) {
 
 	teamCSV, err := readCSVFile("einteilung.csv")
 	if err != nil {
-		return drivers, err
+		return drivers, fmt.Errorf("getDrivers -> readCSVFile: %s", err)
 	}
 	for i := 0; i < len(teamCSV); i++ {
 
-		class := ""
-		if len(teamCSV[i]) >= 3 {
-			class = teamCSV[i][2]
+		if len(teamCSV[i]) != 3 {
+			return drivers, fmt.Errorf("incomplete driver line: %s", teamCSV[i])
 		}
 
+		homeSeries := teamCSV[i][0]
+		id := teamCSV[i][1]
+		class := teamCSV[i][2]
+
 		d := &Driver{
-			HomeSeries: teamCSV[i][0],
-			Id:         teamCSV[i][1],
+			HomeSeries: homeSeries,
+			Id:         id,
 			Class:      class,
 		}
 		drivers = append(drivers, d)
