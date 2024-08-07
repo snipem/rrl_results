@@ -151,8 +151,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	showPoints := true
-	whatsAppMessage, err := formatWhatsApp(individualResults, teamResults, showPoints, true)
+	showPoints := false
+	whatsAppMessage, err := formatWhatsApp(individualResults, teamResults, showPoints, true, true)
 
 	if err != nil {
 		return
@@ -194,6 +194,7 @@ type Team struct {
 	Name       string
 	Drivers    []*Driver
 	HomeSeries string
+	Class      string
 }
 
 func (t *Team) String() string {
@@ -205,24 +206,25 @@ type Circus struct {
 	Teams   []*Team
 }
 
-func formatWhatsApp(individualResults Result, teamResults Result, showPoints bool, showSeries bool) (string, error) {
+func formatWhatsApp(individualResults Result, teamResults Result, showPoints bool, showSeries bool, showClass bool) (string, error) {
 
 	showPosition := true
 
 	rs := fmt.Sprintf("*%s*\nInoffizielles Ergebnis!\n", individualResults.EventName)
 	rs += "```\n"
 
-	rs += getAsciiTable(individualResults, showPosition, showPoints, showSeries, false)
+	rs += getAsciiTable(individualResults, showPosition, showPoints, showSeries, showClass)
 	rs += "```"
 	rs += "\n"
 	rs += "Teams nach Punkten:\n"
 	rs += "```\n"
-	rs += getAsciiTable(teamResults, showPosition, showPoints, false, true)
+	rs += getAsciiTable(teamResults, showPosition, showPoints, false, false)
+	rs += "```\n"
 
 	for i, s := range []string{"PRO", "PROAM", "AM"} {
-		rs += fmt.Sprintf("Ergebnis %s-Klasse\n", s)
+		rs += fmt.Sprintf("Ergebnis %s-Klasse:\n", s)
 		rs += "```\n"
-		rs += getAsciiTable(getClassResult(individualResults, s), showPosition, showPoints, false, true)
+		rs += getAsciiTable(getClassResult(individualResults, s), showPosition, showPoints, false, false)
 		if i < 2 {
 			rs += "\n"
 		}
@@ -233,7 +235,7 @@ func formatWhatsApp(individualResults Result, teamResults Result, showPoints boo
 	return rs, nil
 }
 
-func getAsciiTable(r Result, showPosition bool, showPoints bool, showSeries bool, isTeamTable bool) string {
+func getAsciiTable(r Result, showPosition bool, showPoints bool, showSeries bool, showClass bool) string {
 	buffer := bytes.Buffer{}
 	w := tabwriter.NewWriter(&buffer, 0, 1, 1, ' ', tabwriter.DiscardEmptyColumns)
 
@@ -241,13 +243,16 @@ func getAsciiTable(r Result, showPosition bool, showPoints bool, showSeries bool
 	if showPosition {
 		fmt.Fprintf(w, "P\t")
 	}
-	fmt.Fprintf(w, "Driver\t")
+	fmt.Fprintf(w, "Name\t")
 	fmt.Fprintf(w, "\t") // remarks
 	if showPoints {
 		fmt.Fprintf(w, "Pts\t")
 	}
 	if showSeries {
 		fmt.Fprintf(w, "S\t")
+	}
+	if showClass {
+		fmt.Fprintf(w, "C\t")
 	}
 
 	fmt.Fprintf(w, "\n")
@@ -262,10 +267,15 @@ func getAsciiTable(r Result, showPosition bool, showPoints bool, showSeries bool
 			remarks = append(remarks, "DNF")
 		}
 
+		// This is for the individual table
+		if standing.Driver != nil && standing.Driver.HomeSeries != r.Series {
+			remarks = append(remarks, "EF")
+		}
+
 		if showPosition {
 			fmt.Fprintf(w, "%d\t", standing.Position)
 		}
-		if !isTeamTable {
+		if standing.Driver != nil {
 			fmt.Fprintf(w, "%v\t", standing.Driver.Id)
 		} else {
 			fmt.Fprintf(w, "%v\t", standing.Team.Name)
@@ -276,6 +286,15 @@ func getAsciiTable(r Result, showPosition bool, showPoints bool, showSeries bool
 		}
 		if showSeries {
 			fmt.Fprintf(w, "%v\t", standing.Driver.HomeSeries)
+		}
+		if standing.Driver != nil && showClass {
+			if standing.Driver.HomeSeries == r.Series {
+				fmt.Fprintf(w, "%v\t", standing.Driver.Class)
+			} else {
+				fmt.Fprintf(w, "%v\t", "")
+			}
+		} else if standing.Team == nil && showClass {
+			fmt.Fprintf(w, "%v\t", standing.Team.Class)
 		}
 
 		fmt.Fprintf(w, "\n")
@@ -321,8 +340,9 @@ func getTeams(drivers []*Driver) ([]*Team, error) {
 	}
 	for i := 0; i < len(teamCSV); i++ {
 		t := &Team{
-			Name:       teamCSV[i][1],
 			HomeSeries: teamCSV[i][0],
+			Name:       teamCSV[i][1],
+			Class:      teamCSV[i][2],
 		}
 		for _, memberId := range teamCSV[i][2:4] {
 			if memberId == "" {
@@ -336,8 +356,6 @@ func getTeams(drivers []*Driver) ([]*Team, error) {
 			t.Drivers = append(t.Drivers, d)
 			d.Team = t
 		}
-
-		t.HomeSeries = teamCSV[i][0]
 
 		teams = append(teams, t)
 	}

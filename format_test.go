@@ -17,7 +17,20 @@ func Test_getResults(t *testing.T) {
 	assert.Equal(t, r.Standings[1].FastestLap, true)
 	assert.Equal(t, r.Standings[1].Points, 35+2) // #+2 for fastest lap
 
-	formattedString, err := formatWhatsApp(r, teamResults, true, true)
+	formattedString, err := formatWhatsApp(r, teamResults, true, true, true)
+	assert.NoError(t, err)
+
+	fmt.Println(formattedString)
+}
+
+func Test_getResults_aseries(t *testing.T) {
+	r, err := getResults("results/results_4193-acc-gt3-a-serie-i-rennen-1-red-bull-ring-mittwoch-07-08-2024-19-00-22-00.csv")
+	assert.NoError(t, err)
+	fmt.Printf("%v\n", r)
+	teamResults, err := getTeamResults(r)
+	assert.NoError(t, err)
+
+	formattedString, err := formatWhatsApp(r, teamResults, true, true, true)
 	assert.NoError(t, err)
 
 	fmt.Println(formattedString)
