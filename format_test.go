@@ -60,7 +60,7 @@ func Test_getCircus(t *testing.T) {
 func Test_getClass(t *testing.T) {
 	d, found := getDriverById(getCircus().Drivers, "snimat")
 	assert.True(t, found)
-	assert.Equal(t, d.Class, "AM")
+	assert.Equal(t, d.Class, "PROAM")
 }
 
 func Test_getHomeSeries(t *testing.T) {
