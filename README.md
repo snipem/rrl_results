@@ -18,11 +18,11 @@ Letzte Zeile: Fahrer auf letzter Position
 ### Serieneinteilung: `einteilung.csv`
 
 ```csv
-Serie,Fahrer-Id
+Serie,Fahrer-Id,Klasse
 ```
 
 ### Teams: `teams.csv`
 
 ```csv
-Team-Name,Fahrer-Id Fahrer 1, Fahrer-Id Fahrer 2
+Team-Name,Fahrer-Id Fahrer 1, Fahrer-Id Fahrer 2,Klasse
 ```

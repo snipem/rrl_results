@@ -152,7 +152,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	showPoints := false
+	showPoints := true
 	whatsAppMessage, err := formatWhatsApp(individualResults, teamResults, showPoints, true, true)
 
 	if err != nil {
